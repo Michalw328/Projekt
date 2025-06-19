@@ -1,10 +1,9 @@
 from tkinter import *
-from tkinter import ttk
 import tkintermapview
 import requests
 from bs4 import BeautifulSoup
 
-# ======= Pomocnicza funkcja pobierania współrzędnych =======
+# ======= Pobieranie współrzędnych =======
 def get_coordinates(location):
     try:
         url = f"https://pl.wikipedia.org/wiki/{location}"
@@ -14,9 +13,16 @@ def get_coordinates(location):
         lon = float(soup.select(".longitude")[1].text.replace(",", "."))
         return [lat, lon]
     except:
-        return [52.23, 21.01]  # domyślnie Warszawa
+        return [52.23, 21.01]  # Domyślna lokalizacja: Warszawa
 
-# ======= Klasa kierowcy =======
+# ======= Klasy =======
+class Bus:
+    def __init__(self, line, city):
+        self.line = line
+        self.city = city
+        self.coordinates = get_coordinates(city)
+        self.marker = map_widget.set_marker(self.coordinates[0], self.coordinates[1], text=f"Autobus {self.line}")
+
 class Driver:
     def __init__(self, name, city, line):
         self.name = name
@@ -25,108 +31,80 @@ class Driver:
         self.coordinates = get_coordinates(city)
         self.marker = map_widget.set_marker(self.coordinates[0], self.coordinates[1], text=f"{self.name} - linia {self.line}")
 
+buses = []
 drivers = []
 
-# ======= Funkcje GUI dla kierowców =======
-def add_driver():
-    name = entry_driver_name.get()
-    city = entry_driver_city.get()
-    line = entry_driver_line.get()
-    driver = Driver(name, city, line)
+# ======= Funkcje =======
+def add_data():
+    line = entry_line.get()
+    bus_city = entry_bus_city.get()
+    driver_name = entry_driver_name.get()
+    driver_city = entry_driver_city.get()
+
+    bus = Bus(line, bus_city)
+    driver = Driver(driver_name, driver_city, line)
+
+    buses.append(bus)
     drivers.append(driver)
-    update_driver_list()
-    clear_driver_form()
 
-def update_driver_list():
-    listbox_drivers.delete(0, END)
-    for i, d in enumerate(drivers):
-        listbox_drivers.insert(i, f"{d.name} | {d.city} | linia {d.line}")
+    listbox_data.insert(END, f"Linia {line} | {bus_city} | {driver_name} | {driver_city}")
+    clear_form()
 
-def delete_driver():
-    idx = listbox_drivers.index(ACTIVE)
+def delete_data():
+    idx = listbox_data.index(ACTIVE)
+    buses[idx].marker.delete()
     drivers[idx].marker.delete()
+    buses.pop(idx)
     drivers.pop(idx)
-    update_driver_list()
+    listbox_data.delete(idx)
 
-def show_driver_on_map():
-    idx = listbox_drivers.index(ACTIVE)
-    d = drivers[idx]
-    map_widget.set_position(d.coordinates[0], d.coordinates[1])
+def clear_form():
+    entry_line.delete(0, END)
+    entry_bus_city.delete(0, END)
+    entry_driver_name.delete(0, END)
+    entry_driver_city.delete(0, END)
+
+def show_on_map():
+    idx = listbox_data.index(ACTIVE)
+    bus = buses[idx]
+    map_widget.set_position(bus.coordinates[0], bus.coordinates[1])
     map_widget.set_zoom(14)
-
-def edit_driver():
-    idx = listbox_drivers.index(ACTIVE)
-    d = drivers[idx]
-    entry_driver_name.delete(0, END)
-    entry_driver_name.insert(0, d.name)
-    entry_driver_city.delete(0, END)
-    entry_driver_city.insert(0, d.city)
-    entry_driver_line.delete(0, END)
-    entry_driver_line.insert(0, d.line)
-    button_driver_add.config(text="Zapisz", command=lambda: update_driver(idx))
-
-def update_driver(idx):
-    drivers[idx].marker.delete()
-    drivers[idx].name = entry_driver_name.get()
-    drivers[idx].city = entry_driver_city.get()
-    drivers[idx].line = entry_driver_line.get()
-    drivers[idx].coordinates = get_coordinates(drivers[idx].city)
-    drivers[idx].marker = map_widget.set_marker(
-        drivers[idx].coordinates[0], drivers[idx].coordinates[1],
-        text=f"{drivers[idx].name} - linia {drivers[idx].line}"
-    )
-    button_driver_add.config(text="Dodaj", command=add_driver)
-    update_driver_list()
-    clear_driver_form()
-
-def clear_driver_form():
-    entry_driver_name.delete(0, END)
-    entry_driver_city.delete(0, END)
-    entry_driver_line.delete(0, END)
-    entry_driver_name.focus()
 
 # ======= GUI Setup =======
 root = Tk()
 root.title("Zarządzanie autobusami i kierowcami")
 root.geometry("1024x768")
 
-notebook = ttk.Notebook(root)
-frame_buses = Frame(notebook)
-frame_drivers = Frame(notebook)
-frame_map = Frame(root)
+# ======= Formularz =======
+Label(root, text="Linia autobusu:").grid(row=0, column=0, sticky=W)
+entry_line = Entry(root, width=40)
+entry_line.grid(row=0, column=1, padx=10, pady=2)
 
-notebook.add(frame_buses, text="Autobusy")
-notebook.add(frame_drivers, text="Kierowcy")
-notebook.pack(expand=True, fill="both")
-frame_map.pack(fill="both")
+Label(root, text="Miasto:").grid(row=1, column=0, sticky=W)
+entry_bus_city = Entry(root, width=40)
+entry_bus_city.grid(row=1, column=1, padx=10, pady=2)
 
-# ======= GUI dla kierowców =======
-Label(frame_drivers, text="Imię i nazwisko:").grid(row=0, column=0, sticky=W)
-entry_driver_name = Entry(frame_drivers)
-entry_driver_name.grid(row=0, column=1)
+Label(root, text="Imię i nazwisko kierowcy:").grid(row=2, column=0, sticky=W)
+entry_driver_name = Entry(root, width=40)
+entry_driver_name.grid(row=2, column=1, padx=10, pady=2)
 
-Label(frame_drivers, text="Miasto:").grid(row=1, column=0, sticky=W)
-entry_driver_city = Entry(frame_drivers)
-entry_driver_city.grid(row=1, column=1)
+Label(root, text="Miasto kierowcy:").grid(row=3, column=0, sticky=W)
+entry_driver_city = Entry(root, width=40)
+entry_driver_city.grid(row=3, column=1, padx=10, pady=2)
 
-Label(frame_drivers, text="Linia autobusowa:").grid(row=2, column=0, sticky=W)
-entry_driver_line = Entry(frame_drivers)
-entry_driver_line.grid(row=2, column=1)
+Button(root, text="Dodaj", command=add_data).grid(row=4, column=1, pady=5, sticky=E)
 
-button_driver_add = Button(frame_drivers, text="Dodaj", command=add_driver)
-button_driver_add.grid(row=3, column=1, pady=5)
+# ======= Lista =======
+listbox_data = Listbox(root, width=100)
+listbox_data.grid(row=5, column=0, columnspan=2, pady=10)
 
-listbox_drivers = Listbox(frame_drivers, width=50)
-listbox_drivers.grid(row=4, column=0, columnspan=2)
-
-Button(frame_drivers, text="Pokaż na mapie", command=show_driver_on_map).grid(row=5, column=0)
-Button(frame_drivers, text="Edytuj", command=edit_driver).grid(row=5, column=1)
-Button(frame_drivers, text="Usuń", command=delete_driver).grid(row=6, column=0, columnspan=2)
+Button(root, text="Pokaż na mapie", command=show_on_map).grid(row=6, column=0)
+Button(root, text="Usuń", command=delete_data).grid(row=6, column=1, sticky=E)
 
 # ======= Mapa =======
-map_widget = tkintermapview.TkinterMapView(frame_map, width=1000, height=400)
-map_widget.set_position(52.23, 21.01)  # Warszawa
+map_widget = tkintermapview.TkinterMapView(root, width=1000, height=400)
+map_widget.set_position(52.23, 21.01)
 map_widget.set_zoom(6)
-map_widget.pack()
+map_widget.grid(row=7, column=0, columnspan=2, pady=10)
 
 root.mainloop()
