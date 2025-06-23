@@ -1,4 +1,5 @@
 from tkinter import *
+from tkinter import ttk
 import tkintermapview
 import requests
 from bs4 import BeautifulSoup
@@ -42,6 +43,7 @@ class Client:
 buses = []
 drivers = []
 clients = []
+client_line_options = []
 
 # ======= Funkcje =======
 def add_data():
@@ -57,24 +59,28 @@ def add_data():
     drivers.append(driver)
 
     listbox_data.insert(END, f"Linia {line} | {bus_city} | {driver_name} | {driver_city}")
+
+    if line not in client_line_options:
+        client_line_options.append(line)
+        combo_client_line['values'] = client_line_options
+
     clear_form()
 
 def add_client():
-    line = entry_client_line.get()
+    line = combo_client_line.get()
     name = entry_client_name.get()
     city = entry_client_city.get()
     client = Client(name, city, line)
     clients.append(client)
     listbox_clients.insert(END, f"Linia {line} | {name} | {city}")
-    entry_client_line.delete(0, END)
+    combo_client_line.set("")
     entry_client_name.delete(0, END)
     entry_client_city.delete(0, END)
 
 def edit_client():
     idx = listbox_clients.index(ACTIVE)
     if 0 <= idx < len(clients):
-        entry_client_line.delete(0, END)
-        entry_client_line.insert(0, clients[idx].line)
+        combo_client_line.set(clients[idx].line)
         entry_client_name.delete(0, END)
         entry_client_name.insert(0, clients[idx].name)
         entry_client_city.delete(0, END)
@@ -83,7 +89,7 @@ def edit_client():
 
 def update_client(idx):
     clients[idx].marker.delete()
-    clients[idx].line = entry_client_line.get()
+    clients[idx].line = combo_client_line.get()
     clients[idx].name = entry_client_name.get()
     clients[idx].city = entry_client_city.get()
     clients[idx].coordinates = get_coordinates(clients[idx].city)
@@ -91,7 +97,7 @@ def update_client(idx):
     listbox_clients.delete(idx)
     listbox_clients.insert(idx, f"Linia {clients[idx].line} | {clients[idx].name} | {clients[idx].city}")
     button_add_client.config(text="Dodaj klienta", command=add_client)
-    entry_client_line.delete(0, END)
+    combo_client_line.set("")
     entry_client_name.delete(0, END)
     entry_client_city.delete(0, END)
 
@@ -170,8 +176,8 @@ right_frame = Frame(root)
 right_frame.grid(row=0, column=1, padx=10, pady=10, sticky=N)
 
 Label(right_frame, text="Linia autobusowa:").grid(row=0, column=0, sticky=W)
-entry_client_line = Entry(right_frame, width=30)
-entry_client_line.grid(row=0, column=1, padx=5, pady=2)
+combo_client_line = ttk.Combobox(right_frame, width=27, textvariable=StringVar())
+combo_client_line.grid(row=0, column=1, padx=5, pady=2)
 
 Label(right_frame, text="Klienci:").grid(row=1, column=0, sticky=W)
 entry_client_name = Entry(right_frame, width=30)
