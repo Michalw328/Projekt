@@ -1,142 +1,266 @@
 from tkinter import *
+from tkinter import ttk
 import tkintermapview
 import requests
 from bs4 import BeautifulSoup
 
-class Bus:
-    def __init__(self, line, stop_name, passengers):
-        self.line = line
-        self.stop_name = stop_name
-        self.passengers = passengers
-        self.coordinates = self.get_coordinates()
-        self.marker = map_widget.set_marker(self.coordinates[0], self.coordinates[1], text=f"Linia {line}")
-
-    def get_coordinates(self):
-        url = f"https://pl.wikipedia.org/wiki/{self.stop_name}"
+# ======= Pobieranie współrzędnych =======
+# Funkcja pobiera współrzędne geograficzne danego miasta z Wikipedii
+# Jeśli nie uda się pobrać danych, zwraca domyślną lokalizację (Warszawa)
+def get_coordinates(location):
+    try:
+        url = f"https://pl.wikipedia.org/wiki/{location}"
         response = requests.get(url)
         soup = BeautifulSoup(response.text, "html.parser")
-        try:
-            lat = float(soup.select(".latitude")[1].text.replace(",", "."))
-            lon = float(soup.select(".longitude")[1].text.replace(",", "."))
-            return [lat, lon]
-        except IndexError:
-            return [52.23, 21.01]  # domyślnie Warszawa
+        lat = float(soup.select(".latitude")[1].text.replace(",", "."))
+        lon = float(soup.select(".longitude")[1].text.replace(",", "."))
+        return [lat, lon]
+    except:
+        return [52.23, 21.01]  # Domyślna lokalizacja: Warszawa
 
+# ======= Klasy =======
+# Klasa reprezentująca autobus
+class Bus:
+    def __init__(self, line, city):
+        self.line = line
+        self.city = city
+        self.coordinates = get_coordinates(city)
+        self.marker = map_widget.set_marker(self.coordinates[0], self.coordinates[1], text=f"Autobus {self.line}")
+
+# Klasa reprezentująca kierowcę
+class Driver:
+    def __init__(self, name, city, line):
+        self.name = name
+        self.city = city
+        self.line = line
+        self.coordinates = get_coordinates(city)
+        self.marker = map_widget.set_marker(self.coordinates[0], self.coordinates[1], text=f"{self.name} - linia {self.line}")
+
+# Klasa reprezentująca klienta
+class Client:
+    def __init__(self, name, city, line):
+        self.name = name
+        self.city = city
+        self.line = line
+        self.coordinates = get_coordinates(city)
+        self.marker = map_widget.set_marker(self.coordinates[0], self.coordinates[1], text=f"Klient: {self.name}, linia {self.line}")
+
+# Listy do przechowywania danych
 buses = []
+drivers = []
+clients = []
+client_line_options = []
 
-def add_bus():
+# ======= Funkcje =======
+# Dodaje autobus i kierowcę do odpowiednich list i wyświetla w listboxie
+# Dodaje też linię do listy linii klientów, jeśli jeszcze jej nie ma
+def add_data():
     line = entry_line.get()
-    stop = entry_stop.get()
-    passengers = entry_passengers.get()
-    bus = Bus(line, stop, passengers)
+    bus_city = entry_bus_city.get()
+    driver_name = entry_driver_name.get()
+    driver_city = entry_driver_city.get()
+
+    bus = Bus(line, bus_city)
+    driver = Driver(driver_name, driver_city, line)
+
     buses.append(bus)
-    update_bus_list()
+    drivers.append(driver)
+
+    listbox_data.insert(END, f"Linia {line} | {bus_city} | {driver_name} | {driver_city}")
+
+    if line not in client_line_options:
+        client_line_options.append(line)
+        combo_client_line['values'] = client_line_options
+
     clear_form()
 
-def update_bus_list():
-    listbox_buses.delete(0, END)
-    for i, bus in enumerate(buses):
-        listbox_buses.insert(i, f"{i+1}. Linia {bus.line}, {bus.stop_name}, {bus.passengers} pasażerów")
+# Przygotowuje dane do edycji w formularzu
+def edit_data():
+    idx = listbox_data.index(ACTIVE)
+    if idx < len(buses):
+        entry_line.delete(0, END)
+        entry_line.insert(0, buses[idx].line)
+        entry_bus_city.delete(0, END)
+        entry_bus_city.insert(0, buses[idx].city)
+        entry_driver_name.delete(0, END)
+        entry_driver_name.insert(0, drivers[idx].name)
+        entry_driver_city.delete(0, END)
+        entry_driver_city.insert(0, drivers[idx].city)
+        button_add_data.config(text="Zapisz", command=lambda: update_data(idx))
 
-def delete_bus():
-    idx = listbox_buses.index(ACTIVE)
+# Zapisuje zmiany edytowanego wpisu
+def update_data(idx):
     buses[idx].marker.delete()
-    buses.pop(idx)
-    update_bus_list()
+    drivers[idx].marker.delete()
 
-def show_bus_details():
-    idx = listbox_buses.index(ACTIVE)
-    bus = buses[idx]
-    label_line_value.config(text=bus.line)
-    label_stop_value.config(text=bus.stop_name)
-    label_passengers_value.config(text=bus.passengers)
-    map_widget.set_position(bus.coordinates[0], bus.coordinates[1])
-    map_widget.set_zoom(14)
+    line = entry_line.get()
+    city = entry_bus_city.get()
+    name = entry_driver_name.get()
+    dcity = entry_driver_city.get()
 
-def edit_bus():
-    idx = listbox_buses.index(ACTIVE)
-    bus = buses[idx]
-    entry_line.insert(0, bus.line)
-    entry_stop.insert(0, bus.stop_name)
-    entry_passengers.insert(0, bus.passengers)
-    button_add.config(text="Zapisz", command=lambda: save_edit(idx))
+    buses[idx] = Bus(line, city)
+    drivers[idx] = Driver(name, dcity, line)
 
-def save_edit(idx):
-    buses[idx].marker.delete()
-    buses[idx].line = entry_line.get()
-    buses[idx].stop_name = entry_stop.get()
-    buses[idx].passengers = entry_passengers.get()
-    buses[idx].coordinates = buses[idx].get_coordinates()
-    buses[idx].marker = map_widget.set_marker(buses[idx].coordinates[0], buses[idx].coordinates[1], text=f"Linia {buses[idx].line}")
-    button_add.config(text="Dodaj", command=add_bus)
-    update_bus_list()
+    listbox_data.delete(idx)
+    listbox_data.insert(idx, f"Linia {line} | {city} | {name} | {dcity}")
+
+    button_add_data.config(text="Dodaj", command=add_data)
     clear_form()
 
+# Dodaje klienta i wyświetla go w listboxie
+def add_client():
+    line = combo_client_line.get()
+    name = entry_client_name.get()
+    city = entry_client_city.get()
+    client = Client(name, city, line)
+    clients.append(client)
+    listbox_clients.insert(END, f"Linia {line} | {name} | {city}")
+    combo_client_line.set("")
+    entry_client_name.delete(0, END)
+    entry_client_city.delete(0, END)
+
+# Przygotowuje dane klienta do edycji
+def edit_client():
+    idx = listbox_clients.index(ACTIVE)
+    if 0 <= idx < len(clients):
+        combo_client_line.set(clients[idx].line)
+        entry_client_name.delete(0, END)
+        entry_client_name.insert(0, clients[idx].name)
+        entry_client_city.delete(0, END)
+        entry_client_city.insert(0, clients[idx].city)
+        button_add_client.config(text="Zapisz klienta", command=lambda: update_client(idx))
+
+# Zapisuje zmienione dane klienta i aktualizuje marker na mapie
+def update_client(idx):
+    clients[idx].marker.delete()
+    clients[idx].line = combo_client_line.get()
+    clients[idx].name = entry_client_name.get()
+    clients[idx].city = entry_client_city.get()
+    clients[idx].coordinates = get_coordinates(clients[idx].city)
+    clients[idx].marker = map_widget.set_marker(clients[idx].coordinates[0], clients[idx].coordinates[1], text=f"Klient: {clients[idx].name}, linia {clients[idx].line}")
+    listbox_clients.delete(idx)
+    listbox_clients.insert(idx, f"Linia {clients[idx].line} | {clients[idx].name} | {clients[idx].city}")
+    button_add_client.config(text="Dodaj klienta", command=add_client)
+    combo_client_line.set("")
+    entry_client_name.delete(0, END)
+    entry_client_city.delete(0, END)
+
+# Usuwa klienta z listy i z mapy
+def delete_client():
+    idx = listbox_clients.index(ACTIVE)
+    if 0 <= idx < len(clients):
+        clients[idx].marker.delete()
+        clients.pop(idx)
+        listbox_clients.delete(idx)
+
+# Usuwa dane autobusu i kierowcy
+def delete_data():
+    idx = listbox_data.index(ACTIVE)
+    if idx < len(buses):
+        buses[idx].marker.delete()
+        drivers[idx].marker.delete()
+        buses.pop(idx)
+        drivers.pop(idx)
+    listbox_data.delete(idx)
+
+# Czyści pola formularza kierowcy
 def clear_form():
     entry_line.delete(0, END)
-    entry_stop.delete(0, END)
-    entry_passengers.delete(0, END)
-    entry_line.focus()
+    entry_bus_city.delete(0, END)
+    entry_driver_name.delete(0, END)
+    entry_driver_city.delete(0, END)
 
-# GUI
+# Ustawia mapę na lokalizację autobusu
+def show_on_map():
+    idx = listbox_data.index(ACTIVE)
+    if idx < len(buses):
+        bus = buses[idx]
+        map_widget.set_position(bus.coordinates[0], bus.coordinates[1])
+        map_widget.set_zoom(14)
+
+# Ustawia mapę na lokalizację klienta
+def show_client_on_map():
+    idx = listbox_clients.index(ACTIVE)
+    if 0 <= idx < len(clients):
+        client = clients[idx]
+        map_widget.set_position(client.coordinates[0], client.coordinates[1])
+        map_widget.set_zoom(14)
+
+# ======= GUI Setup =======
+# Inicjalizacja głównego okna aplikacji
 root = Tk()
-root.title("Zarządzanie autobusami")
-root.geometry("1024x768")
+root.title(" zarządzania zakładem komunikacji")
+root.geometry("1100x800")
 
-# Layout
-frame_list = Frame(root)
-frame_form = Frame(root)
-frame_details = Frame(root)
-frame_map = Frame(root)
+# ======= Formularz Lewy =======
+# Formularz dodawania autobusu i kierowcy
+left_frame = Frame(root)
+left_frame.grid(row=0, column=0, padx=10, pady=10, sticky=N)
 
-frame_list.grid(row=0, column=0, padx=10)
-frame_form.grid(row=0, column=1, padx=10)
-frame_details.grid(row=1, column=0, columnspan=2, pady=10)
-frame_map.grid(row=2, column=0, columnspan=2)
+Label(left_frame, text="Linia autobusowa:").grid(row=0, column=0, sticky=W)
+entry_line = Entry(left_frame, width=40)
+entry_line.grid(row=0, column=1, padx=10, pady=2)
 
-# Lista autobusów
-Label(frame_list, text="Lista autobusów:").pack()
-listbox_buses = Listbox(frame_list, width=60)
-listbox_buses.pack()
-Button(frame_list, text="Pokaż szczegóły", command=show_bus_details).pack(pady=5)
-Button(frame_list, text="Edytuj", command=edit_bus).pack()
-Button(frame_list, text="Usuń", command=delete_bus).pack()
+Label(left_frame, text="Miasto:").grid(row=1, column=0, sticky=W)
+entry_bus_city = Entry(left_frame, width=40)
+entry_bus_city.grid(row=1, column=1, padx=10, pady=2)
 
-# Formularz dodawania
-Label(frame_form, text="Dodaj autobus:").grid(row=0, column=0, columnspan=2)
-Label(frame_form, text="Linia:").grid(row=1, column=0, sticky=W)
-entry_line = Entry(frame_form)
-entry_line.grid(row=1, column=1)
+Label(left_frame, text="Imię i nazwisko kierowcy:").grid(row=2, column=0, sticky=W)
+entry_driver_name = Entry(left_frame, width=40)
+entry_driver_name.grid(row=2, column=1, padx=10, pady=2)
 
-Label(frame_form, text="Przystanek:").grid(row=2, column=0, sticky=W)
-entry_stop = Entry(frame_form)
-entry_stop.grid(row=2, column=1)
+Label(left_frame, text="Miasto kierowcy:").grid(row=3, column=0, sticky=W)
+entry_driver_city = Entry(left_frame, width=40)
+entry_driver_city.grid(row=3, column=1, padx=10, pady=2)
 
-Label(frame_form, text="Pasażerowie:").grid(row=3, column=0, sticky=W)
-entry_passengers = Entry(frame_form)
-entry_passengers.grid(row=3, column=1)
+button_add_data = Button(left_frame, text="Dodaj", command=add_data)
+button_add_data.grid(row=4, column=1, pady=5, sticky=E)
 
-button_add = Button(frame_form, text="Dodaj", command=add_bus)
-button_add.grid(row=4, column=0, columnspan=2, pady=5)
+listbox_data = Listbox(left_frame, width=75, height=15)
+listbox_data.grid(row=5, column=0, columnspan=2, pady=10)
 
-# Szczegóły autobusu
-Label(frame_details, text="Szczegóły autobusu:").grid(row=0, column=0, sticky=W)
-Label(frame_details, text="Linia:").grid(row=1, column=0)
-label_line_value = Label(frame_details, text="...")
-label_line_value.grid(row=1, column=1)
+btn_frame_left = Frame(left_frame)
+btn_frame_left.grid(row=6, column=0, columnspan=2, pady=5)
+Button(btn_frame_left, text="Pokaż na mapie", command=show_on_map).grid(row=0, column=0, padx=5)
+Button(btn_frame_left, text="Edytuj", command=edit_data).grid(row=0, column=1, padx=5)
+Button(btn_frame_left, text="Usuń", command=delete_data).grid(row=0, column=2, padx=5)
 
-Label(frame_details, text="Przystanek:").grid(row=1, column=2)
-label_stop_value = Label(frame_details, text="...")
-label_stop_value.grid(row=1, column=3)
+# ======= Formularz Prawy =======
+# Formularz dodawania klienta
+right_frame = Frame(root)
+right_frame.grid(row=0, column=1, padx=10, pady=10, sticky=N)
 
-Label(frame_details, text="Pasażerowie:").grid(row=1, column=4)
-label_passengers_value = Label(frame_details, text="...")
-label_passengers_value.grid(row=1, column=5)
+Label(right_frame, text="Linia autobusowa:").grid(row=0, column=0, sticky=W)
+combo_client_line = ttk.Combobox(right_frame, width=27, textvariable=StringVar())
+combo_client_line.grid(row=0, column=1, padx=5, pady=2)
 
-# Mapa
-map_widget = tkintermapview.TkinterMapView(frame_map, width=1000, height=400)
-map_widget.set_position(52.23, 21.01)  # Warszawa
+Label(right_frame, text="Imię i nazwisko klienta:").grid(row=1, column=0, sticky=W)
+entry_client_name = Entry(right_frame, width=30)
+entry_client_name.grid(row=1, column=1, padx=5, pady=2)
+
+Label(right_frame, text="Miasto klienta:").grid(row=2, column=0, sticky=W)
+entry_client_city = Entry(right_frame, width=30)
+entry_client_city.grid(row=2, column=1, padx=5, pady=2)
+
+button_add_client = Button(right_frame, text="Dodaj klienta", command=add_client)
+button_add_client.grid(row=3, column=1, pady=5, sticky=E)
+
+Label(right_frame, text="").grid(row=4, column=0)  # pusty wiersz dla wyrównania
+listbox_clients = Listbox(right_frame, width=60, height=15)
+listbox_clients.grid(row=5, column=0, columnspan=2, pady=10)
+
+btn_frame_right = Frame(right_frame)
+btn_frame_right.grid(row=6, column=0, columnspan=2, pady=5)
+Button(btn_frame_right, text="Pokaż klienta na mapie", command=show_client_on_map).grid(row=0, column=0, padx=5)
+Button(btn_frame_right, text="Edytuj klienta", command=edit_client).grid(row=0, column=1, padx=5)
+Button(btn_frame_right, text="Usuń klienta", command=delete_client).grid(row=0, column=2, padx=5)
+
+# ======= Mapa =======
+# Tworzenie i wyświetlenie widżetu mapy z domyślną pozycją i przybliżeniem
+map_widget = tkintermapview.TkinterMapView(root, width=1000, height=400)
+map_widget.set_position(52.23, 21.01)
 map_widget.set_zoom(6)
-map_widget.pack()
+map_widget.grid(row=6, column=0, columnspan=2, pady=10)
 
+# Uruchomienie głównej pętli aplikacji
 root.mainloop()
